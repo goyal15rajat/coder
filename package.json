@@ -1,0 +1,129 @@
+{
+    "name": "coder",
+    "displayName": "coder",
+    "description": "Extension to generate docstring using AI for python.",
+    "version": "1.0.0",
+    "publisher": "R-g",
+    "engines": {
+        "vscode": "^1.90.0"
+    },
+    "categories": [
+        "Linters",
+        "AI"
+    ],
+    "activationEvents": [],
+    "main": "./extension.js",
+    "contributes": {
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "coder.writeDocstring",
+                    "when": "editorTextFocus",
+                    "group": "navigation@100"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "coder.writeDocstring",
+                "title": "CODER: Write docstring"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "coder.writeDocstring",
+                "key": "cmd+h",
+                "when": "editorTextFocus"
+            }
+        ],
+        "configuration": {
+            "title": "Coder extension",
+            "properties": {
+                "coder.aiEngine": {
+                    "type": "string",
+                    "default": "http://127.0.0.1:11434",
+                    "enum": ["OpenAI", "Gemini", "LLama", "Other"],
+                    "markdownEnumDescriptions": [
+                        "OpenAI engine",
+                        "Gemini Engine",
+                        "LLama Engine",
+                        "Other Engine"
+                    ],
+                    "description": "AI Engine."
+                },
+                "coder.aiEngineURI": {
+                    "type": "string",
+                    "default": "http://127.0.0.1:11434",
+                    "description": "AI engine api"
+                },
+                "coder.aiEngineAuthKey": {
+                    "type": "string",
+                    "default": "api-key",
+                    "description": "AI auth header key"
+                },
+                "coder.aiEngineAuthValue": {
+                    "type": "string",
+                    "default": "Auth key value",
+                    "description": "AI auth header key"
+                },
+                "coder.languagePrompts": {
+                    "type": "array",
+                    "default": [
+                        {
+                            "language": "python",
+                            "prompt": "Customize prompts for generating docstrings. Each entry is a multiline prompt string."
+
+                        },
+                        {
+                            "language": "javascript",
+                            "prompt": "Customize prompts for generating docstrings. Each entry is a multiline prompt string."
+
+                        }
+                    ],
+                    "description": "Customize prompts for generating docstrings. Each entry is a multiline prompt string."
+                },
+                "coder.engineDetails": {
+                    "type": "object",
+                    "default": {
+                        "OpenAI": {},
+                        "Gemini": {},
+                        "LLama": {},
+                        "Other": {}
+                    },
+                    "description": "Set API keys and endpoints for OpenAI, Gemini, and Llama engines."
+                },
+                "coder.autoSave": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Controls if extension will autosave changes or not."
+                },
+                "coder.pythonLinter": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable ython black linter or not."
+                },
+                "coder.pythonLinterConfigPath": {
+                    "type": "string",
+                    "default": "/pyproject.toml",
+                    "description": "Absolute path to toml file for black"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "lint": "eslint .",
+        "pretest": "npm run lint",
+        "test": "vscode-test"
+    },
+    "devDependencies": {
+        "@types/mocha": "^10.0.10",
+        "@types/node": "20.x",
+        "@types/vscode": "^1.90.0",
+        "@vscode/test-cli": "^0.0.10",
+        "@vscode/test-electron": "^2.4.1",
+        "eslint": "^9.16.0"
+    },
+    "dependencies": {
+        "node-fetch": "^3.3.2"
+    }
+}
