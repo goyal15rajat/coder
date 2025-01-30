@@ -83,9 +83,26 @@ This extension contributes the following settings:
 
 -   `**coder.autoSave**` (default: `false`): Controls if extension will autosave changes or not.
 
--   `**coder.pythonLinter**` (default: `false`): Enable ython black linter or not.
+-   `**coder.aiEngine**` : Controls which AIENgine is being used.
 
--   `**coder.pythonLinterConfigPath**` (default: `pyproject.toml`): Absolute path to toml file.
+-   `**coder.engineDetails**`:
+
+    -   Define AIEngine details. Example:
+
+        ```
+        {
+            "OpenAI": {
+                "url": "https://api.openai.com/v1/chat/completions",
+                "key": "auth-key",
+                "model": "gpt-4o-mini"
+            },
+            "Gemini": {
+                "url": "https://generativelanguage.googleapis.com/v1beta/models",
+                "key": "auth-key"
+                "model": "gemini-1.5-flash"
+            }
+        }
+        ```
 
 * * * * *
 
@@ -116,42 +133,16 @@ Known Issues
 
 -   Requires active configuration of the AI engine for optimal performance.
 
-- If python black linter is enabled, might create issues when using single quotes
-
 * * * * *
 
 Release Notes
 -------------
 
-### 0.0.1
+### 2.00
 
 -   Initial release of `coder`.
 
 -   Features include customizable docstring generation, AI integration, and support for Python and JavaScript.
 
-### 0.0.5
-
--   Add support for python black linter
-
-### 0.0.7
-
--   Add support to create doctring with partial selection
--   Add functionality to lint as per config file
-
-### 0.0.8
-
--   Handle indentation of python
-
-### 1.0.0
-
--   Handle duplicate functions.
-
-* * * * *
-Installation
---------------------
-
-```
-code --install-extension coder-0.0.10.vsix
-```
 
 **Enjoy generating professional docstrings with ease!**

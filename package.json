@@ -41,30 +41,13 @@
             "properties": {
                 "coder.aiEngine": {
                     "type": "string",
-                    "default": "http://127.0.0.1:11434",
-                    "enum": ["OpenAI", "Gemini", "LLama", "Other"],
+                    "default": "",
+                    "enum": ["OpenAI", "Gemini"],
                     "markdownEnumDescriptions": [
                         "OpenAI engine",
-                        "Gemini Engine",
-                        "LLama Engine",
-                        "Other Engine"
+                        "Gemini Engine"
                     ],
-                    "description": "AI Engine."
-                },
-                "coder.aiEngineURI": {
-                    "type": "string",
-                    "default": "http://127.0.0.1:11434",
-                    "description": "AI engine api"
-                },
-                "coder.aiEngineAuthKey": {
-                    "type": "string",
-                    "default": "api-key",
-                    "description": "AI auth header key"
-                },
-                "coder.aiEngineAuthValue": {
-                    "type": "string",
-                    "default": "Auth key value",
-                    "description": "AI auth header key"
+                    "description": "Select AI Engine."
                 },
                 "coder.languagePrompts": {
                     "type": "array",
@@ -85,27 +68,23 @@
                 "coder.engineDetails": {
                     "type": "object",
                     "default": {
-                        "OpenAI": {},
-                        "Gemini": {},
-                        "LLama": {},
-                        "Other": {}
+                        "OpenAI": {
+                            "url": "",
+                            "key": "",
+                            "model": ""
+                        },
+                        "Gemini": {
+                            "url": "",
+                            "key": "",
+                            "model": ""
+                        }
                     },
-                    "description": "Set API keys and endpoints for OpenAI, Gemini, and Llama engines."
+                    "description": "Set API keys and endpoints for OpenAI, Gemini, and Deepseek engines."
                 },
                 "coder.autoSave": {
                     "type": "boolean",
                     "default": false,
                     "description": "Controls if extension will autosave changes or not."
-                },
-                "coder.pythonLinter": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Enable ython black linter or not."
-                },
-                "coder.pythonLinterConfigPath": {
-                    "type": "string",
-                    "default": "/pyproject.toml",
-                    "description": "Absolute path to toml file for black"
                 }
             }
         }

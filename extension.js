@@ -1,6 +1,6 @@
 // Import the module and reference it with the alias vscode in your code below
 const vscode = require('vscode');
-const child_process = require('child_process')
+// const child_process = require('child_process')
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -33,18 +33,16 @@ function activate(context) {
 
 		const config = vscode.workspace.getConfiguration('coder')
 
-		const aiEngineUri = config.get('aiEngineURI')
-		const aiEngineAuthKey = config.get('aiEngineAuthKey')
-		const aiEngineAuthValue = config.get('aiEngineAuthValue')
 		const langPrompts = config.get('languagePrompts')
 		const autoSave = config.get('autoSave')
-		const pythonLinter = config.get('pythonLinter')
-		const pythonLinterConfigPath = config.get('pythonLinterConfigPath')
+		const engineDetails = config.get('engineDetails')
+		const aiEngine = config.get('aiEngine')
+		// const pythonLinter = config.get('pythonLinter')
+		// const pythonLinterConfigPath = config.get('pythonLinterConfigPath')
 
-		if (aiEngineUri.trim() == "" || aiEngineAuthKey.trim() == "" || aiEngineAuthValue.trim() == "" || !Array.isArray(langPrompts) || langPrompts.length ==0 ) {
-			vscode.window.showErrorMessage('Invalid settings. aiEngineUri , aiEngineAuthKey, aiEngineAuthValue, langPrompts should not be empty')
+		if (aiEngine.trim() == "" ) {
+			vscode.window.showErrorMessage('Invalid settings. make sure aiEngine and engineDetails should not be empty')
 		}
-
 
 		try {
 
@@ -71,7 +69,7 @@ function activate(context) {
 
 					if (!currentSymbol) {
 						// Retrieve the entire content of the file
-						vscode.window.showErrorMessage('No or more than one function decleration found, Select whole function create docstring!!')
+						vscode.window.showErrorMessage('0 or more than 1 function decleration found, Select whole function to generate docstring!!')
 						const selection = editor.selection;
 						selectedText = editor.document.getText(selection);
 					} else {
@@ -82,19 +80,15 @@ function activate(context) {
 					}
 					
 					if (!selectedText.trim()) {
-						vscode.window.showErrorMessage('No text selected. Stop wasting $$')
+						vscode.window.showErrorMessage('No code selected to generate docstring!!')
 					}
 
 					const prompt = getDocstringPrompt(languageId, langPrompts)
-					let newCode = await generateDocstring(aiEngineUri, aiEngineAuthValue, prompt, selectedText);
+					let newCode = await fetchEngineResponse(aiEngine, engineDetails, prompt, selectedText);
 
 					if (!newCode) {
-						vscode.window.showErrorMessage('Error while generating docstring!')
+						vscode.window.showErrorMessage('Error generating docstring!!, Please try again.')
 						return 
-					}
-
-					if (pythonLinter) {
-						newCode = lintCode(languageId, newCode, pythonLinterConfigPath) || newCode
 					}
 
 					const newCodeList = newCode.split('\n');
@@ -148,48 +142,6 @@ function activate(context) {
 }
 
 
-const lintCode = (languageId, code, pythonLinterConfigPath) => {
-
-	try {
-		switch (languageId.toUpperCase()) {
-			case 'PYTHON':
-				const escapedCode = code.replace(/'/g, `'"'"'`)
-
-				let configPath = ''
-
-				if (pythonLinterConfigPath){
-					configPath = `--config ${pythonLinterConfigPath} `
-				}
-
-				const newCode = child_process.execSync(`black ${configPath}--code '${escapedCode}'`, {
-					encoding: 'utf-8', // Ensure output is a string
-				});
-				vscode.window.showInformationMessage('Python file formatted with Black.');
-				return newCode;
-			case 'JAVASCRIPT':
-				const escapedCode = code.replace(/'/g, `'"'"'`)
-
-				let configPath = ''
-
-				if (pythonLinterConfigPath){
-					configPath = `--config ${pythonLinterConfigPath} `
-				}
-
-				const newCode = child_process.execSync(`black ${configPath}--code '${escapedCode}'`, {
-					encoding: 'utf-8', // Ensure output is a string
-				});
-				vscode.window.showInformationMessage('Python file formatted with Black.');
-				return newCode;
-			default:
-				vscode.window.showErrorMessage(`Linting not supported for : ${languageId}`)
-
-		}
-    } catch (error) {
-        vscode.window.showErrorMessage(`Error running Black linter: ${error}`);
-    }
-
-}
-
 function flattenSymbols(symbols) {
     const result = [];
     for (const symbol of symbols) {
@@ -225,7 +177,45 @@ function getFirstAndLastLine(inputString) {
     return { firstLine, lastLine };
 }
 
-async function generateDocstring(aiEngineUri, aiEngineAuthValue, prompt, functionCode) {
+async function fetchEngineResponse(engine, engineDetails, prompt, functionCode) {
+	
+	switch(engine.toUpperCase()) {
+		case 'OPENAI':
+			let openAILines = await generateDocstringOpenAI(engineDetails.OpenAI.url, engineDetails.OpenAI.key, engineDetails.OpenAI.model, prompt, functionCode);
+			return await parseAIResponse(openAILines, functionCode)
+		case 'GEMINI':
+			let geminiLines = await generateDocstringGemini(engineDetails.Gemini.url, engineDetails.Gemini.key, engineDetails.Gemini.model, prompt, functionCode);
+			return await parseAIResponse(geminiLines, functionCode)
+			
+		case 'DEEPSEEK':
+			let deepseekLines = await generateDocstringDeepseek(engineDetails.url, engineDetails.authValue, prompt, functionCode);
+			return await parseAIResponse(deepseekLines, functionCode)
+		default:
+			vscode.window.showErrorMessage('Invalid Engine selected')
+	}
+
+}
+
+async function parseAIResponse(responseLines, functionCode) {
+	try {
+		const { firstLine, lastLine } = getFirstAndLastLine(functionCode);
+
+		console.log('lastLine', firstLine)
+
+		const trimmed_lines = responseLines.map(s => s.trim());
+		
+		const firstLineIndex = trimmed_lines.indexOf(firstLine.trim());
+		const lastLineIndex = trimmed_lines.lastIndexOf(lastLine.trim());
+		const relevantLines = responseLines.slice(firstLineIndex, lastLineIndex + 1);
+		return relevantLines.join('\n');
+	}
+	catch (error) {
+		vscode.window.showErrorMessage("Error while formating docstring", error);
+		return null;
+	}
+}
+
+async function generateDocstringDeepseek(uri, key, prompt, functionCode) {
 
 	let lines = ""
 	try {
@@ -248,11 +238,11 @@ async function generateDocstring(aiEngineUri, aiEngineAuthValue, prompt, functio
 			stop: null
 		};
 
-		const response = await fetch(aiEngineUri, {
+		const response = await fetch(uri, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"api-key": aiEngineAuthValue,
+				"api-key": key,
 			},
 			body: JSON.stringify(payload),
 		});
@@ -271,21 +261,99 @@ async function generateDocstring(aiEngineUri, aiEngineAuthValue, prompt, functio
 		vscode.window.showErrorMessage("Please retry - Error generating docstring:", error);
 		return null;
 	}
+}
 
+async function generateDocstringGemini(uri, key, model, prompt, functionCode) {
+
+	let lines = ""
 	try {
-		const { firstLine, lastLine } = getFirstAndLastLine(functionCode);
+		const payload = {
+			"contents": [
+				{
+					parts: [
+						{
+							text: `You are a coding assistant which generates doctrings. Add doctring to the code and return the output. Do not edit or change code or code format`
+						},
+						{
+							text: `${prompt}\n Code -\n${functionCode}`
+						}
 
-		console.log('lastLine', firstLine)
+					]
+				}
+			]
+		};
 
-		const trimmed_lines = lines.map(s => s.trim());
-		
-		const firstLineIndex = trimmed_lines.indexOf(firstLine.trim());
-		const lastLineIndex = trimmed_lines.lastIndexOf(lastLine.trim());
-		const relevantLines = lines.slice(firstLineIndex, lastLineIndex + 1);
-		return relevantLines.join('\n');
+		const response = await fetch(`${uri}/${model}:generateContent?key=${key}`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json"
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const error = await response.text();
+			vscode.window.showErrorMessage(`OpenAI API error: ${error}`);
+			return null;
+		}
+
+		const data = await response.json();
+		console.log('data', data)
+
+		lines = data.candidates[0].content.parts[0].text.split('\n');
+		return lines
+	} catch (error) {
+		vscode.window.showErrorMessage(`Please retry - Error generating docstring: ${error}`);
+		return null;
 	}
-	catch (error) {
-		vscode.window.showErrorMessage("Error while formating docstring", error);
+}
+
+async function generateDocstringOpenAI(uri, key, model, prompt, functionCode) {
+
+	let lines = ""
+	try {
+		const payload = {
+			model: model,
+			messages: [
+				{
+					role: "system",
+					content: `You are a coding assistant which generates doctrings. Add doctring to the code and return the output. Do not edit or change code or code format`
+				},
+				{
+					role: "user",
+					content: `${prompt}\n Code -\n${functionCode}`
+				},
+
+			],
+			temperature: 0,
+			frequency_penalty: 0,
+			presence_penalty: 0,
+			max_tokens: 4096,
+			stop: null
+		};
+
+		const response = await fetch(uri, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Authorization": `Bearer ${key}`,
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const error = await response.text();
+			vscode.window.showErrorMessage(`OpenAI API error: ${error}`);
+			return null;
+		}
+
+		const data = await response.json();
+		console.log('data', data)
+
+		lines = data.choices[0].message.content.split('\n');
+		return lines
+	} catch (error) {
+		vscode.window.showErrorMessage("Please retry - Error generating docstring:", error);
 		return null;
 	}
 }
