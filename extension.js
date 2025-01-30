@@ -197,6 +197,8 @@ async function fetchEngineResponse(engine, engineDetails, prompt, functionCode) 
 }
 
 async function parseAIResponse(responseLines, functionCode) {
+
+	console.log('functionCode', functionCode, 'reponse', responseLines)
 	try {
 		const { firstLine, lastLine } = getFirstAndLastLine(functionCode);
 
@@ -210,7 +212,7 @@ async function parseAIResponse(responseLines, functionCode) {
 		return relevantLines.join('\n');
 	}
 	catch (error) {
-		vscode.window.showErrorMessage("Error while formating docstring", error);
+		vscode.window.showErrorMessage(`Error while parsing AI response: ${error}`);
 		return null;
 	}
 }
@@ -249,7 +251,7 @@ async function generateDocstringDeepseek(uri, key, prompt, functionCode) {
 
 		if (!response.ok) {
 			const error = await response.text();
-			vscode.window.showErrorMessage(`OpenAI API error: ${error}`);
+			vscode.window.showErrorMessage(`Deepseek API error: ${error}`);
 			return null;
 		}
 
@@ -282,7 +284,7 @@ async function generateDocstringGemini(uri, key, model, prompt, functionCode) {
 				}
 			]
 		};
-
+		console.log('model', model)
 		const response = await fetch(`${uri}/${model}:generateContent?key=${key}`, {
 			method: "POST",
 			headers: {
@@ -293,7 +295,8 @@ async function generateDocstringGemini(uri, key, model, prompt, functionCode) {
 
 		if (!response.ok) {
 			const error = await response.text();
-			vscode.window.showErrorMessage(`OpenAI API error: ${error}`);
+			console.log('error', response.status)
+			vscode.window.showErrorMessage(`Gemini API error ${response.status}: ${error}`);
 			return null;
 		}
 

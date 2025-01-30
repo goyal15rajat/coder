@@ -56,11 +56,6 @@
                             "language": "python",
                             "prompt": "Customize prompts for generating docstrings. Each entry is a multiline prompt string."
 
-                        },
-                        {
-                            "language": "javascript",
-                            "prompt": "Customize prompts for generating docstrings. Each entry is a multiline prompt string."
-
                         }
                     ],
                     "description": "Customize prompts for generating docstrings. Each entry is a multiline prompt string."
