@@ -2,7 +2,7 @@
     "name": "coderai",
     "displayName": "coderAI",
     "description": "Extension to generate docstring using AI for python.",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "publisher": "RJT-G",
     "engines": {
         "vscode": "^1.90.0"
@@ -46,10 +46,11 @@
                 "coder.aiEngine": {
                     "type": "string",
                     "default": "",
-                    "enum": ["OpenAI", "Gemini"],
+                    "enum": ["OpenAI", "Gemini", "AzureOpenAI"],
                     "markdownEnumDescriptions": [
-                        "OpenAI engine",
-                        "Gemini Engine"
+                        "OpenAI Engine",
+                        "Gemini Engine",
+                        "Azure OpenAI Engine"
                     ],
                     "description": "Select AI Engine."
                 },
@@ -76,9 +77,13 @@
                             "url": "",
                             "key": "",
                             "model": ""
+                        },
+                        "AzureOpenAI": {
+                            "url": "",
+                            "key": ""
                         }
                     },
-                    "description": "Set API keys and endpoints for OpenAI, Gemini, and Deepseek engines."
+                    "description": "Set API keys and endpoints for OpenAI, Gemini, and AzureOpenAI engines."
                 },
                 "coder.autoSave": {
                     "type": "boolean",

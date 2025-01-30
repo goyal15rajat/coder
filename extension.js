@@ -183,6 +183,9 @@ async function fetchEngineResponse(engine, engineDetails, prompt, functionCode) 
 		case 'OPENAI':
 			let openAILines = await generateDocstringOpenAI(engineDetails.OpenAI.url, engineDetails.OpenAI.key, engineDetails.OpenAI.model, prompt, functionCode);
 			return await parseAIResponse(openAILines, functionCode)
+		case 'AZUREOPENAI':
+				let AzureOpenAILines = await generateDocstringAzureOpenAI(engineDetails.OpenAI.url, engineDetails.OpenAI.key, engineDetails.OpenAI.model, prompt, functionCode);
+				return await parseAIResponse(AzureOpenAILines, functionCode)
 		case 'GEMINI':
 			let geminiLines = await generateDocstringGemini(engineDetails.Gemini.url, engineDetails.Gemini.key, engineDetails.Gemini.model, prompt, functionCode);
 			return await parseAIResponse(geminiLines, functionCode)
@@ -340,6 +343,56 @@ async function generateDocstringOpenAI(uri, key, model, prompt, functionCode) {
 			headers: {
 				"Content-Type": "application/json",
 				"Authorization": `Bearer ${key}`,
+			},
+			body: JSON.stringify(payload),
+		});
+
+		if (!response.ok) {
+			const error = await response.text();
+			vscode.window.showErrorMessage(`OpenAI API error: ${error}`);
+			return null;
+		}
+
+		const data = await response.json();
+		console.log('data', data)
+
+		lines = data.choices[0].message.content.split('\n');
+		return lines
+	} catch (error) {
+		vscode.window.showErrorMessage("Please retry - Error generating docstring:", error);
+		return null;
+	}
+}
+
+async function generateDocstringAzureOpenAI(uri, key, model, prompt, functionCode) {
+
+	let lines = ""
+	try {
+		const payload = {
+			model: model,
+			messages: [
+				{
+					role: "system",
+					content: `You are a coding assistant which generates doctrings. Add doctring to the code and return the output. Do not edit or change code or code format`
+				},
+				{
+					role: "user",
+					content: `${prompt}\n Code -\n${functionCode}`
+				},
+
+			],
+			temperature: 0,
+			frequency_penalty: 0,
+			presence_penalty: 0,
+			max_tokens: 4096,
+			stop: null
+		};
+
+		const response = await fetch(uri, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"api-key": `${key}`,
 			},
 			body: JSON.stringify(payload),
 		});

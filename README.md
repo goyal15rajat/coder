@@ -1,7 +1,7 @@
-coder
+coderAI
 ==================
 
-`coder` is a Visual Studio Code extension designed to simplify the process of writing docstrings for python in the desired format for various programming languages. This tool leverages customizable prompts to ensure the generated docstrings meet your coding standards and project requirements.
+`coderAI` is a Visual Studio Code extension designed to simplify the process of writing docstrings for python in the desired format for various programming languages. This tool leverages customizable prompts to ensure the generated docstrings meet your coding standards and project requirements.
 
 
 Features
@@ -80,10 +80,6 @@ This extension contributes the following settings:
             {
                 "language": "python",
                 "prompt": "Adds two numbers together.\n\nArgs:\n    a (int): The first number.\n    b (int): The second number.\n\nReturns:\n    int: The sum of the two numbers.\n\nRaises:\n    ServiceUnavailable: If the request times out or the response code is not 2xx."
-            },
-            {
-                "language": "javascript",
-                "prompt": "Customize prompts for generating docstrings. Each entry is a multiline prompt string."
             }
         ]
         ```
@@ -150,6 +146,10 @@ Release Notes
 -   Initial release of `coderAI`.
 
 -   Features include customizable docstring generation, AI integration, and support for Python.
+
+### 2.2.0
+
+-   Add support for AzureOpenAI
 
 
 **Enjoy generating professional docstrings with ease!**
