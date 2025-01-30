@@ -3,11 +3,6 @@ coder
 
 `coder` is a Visual Studio Code extension designed to simplify the process of writing docstrings for python in the desired format for various programming languages. This tool leverages customizable prompts to ensure the generated docstrings meet your coding standards and project requirements.
 
-Requires
---------
-
-Python: https://marketplace.visualstudio.com/items?itemName=ms-python.python
-
 
 Features
 --------
@@ -21,7 +16,9 @@ Features
 -   **AI Integration**: Leverages an AI engine for intelligent docstring generation using API configuration settings.
 
 
-### Screenshot
+### Demo
+
+[![Watch the video] (https://github.com/goyal15rajat/coder/blob/main/demo.mov)]
 
 ### Coming soon
 
@@ -57,6 +54,7 @@ Requirements
 This extension depends on:
 
 1.  **AI Engine**: Ensure you have an AI service running and accessible via the configured URI and authentication settings.
+2. **Language server**: Python https://marketplace.visualstudio.com/items?itemName=ms-python.python
 
 * * * * *
 
@@ -145,11 +143,11 @@ Known Issues
 Release Notes
 -------------
 
-### 2.00
+### 2.1.0
 
--   Initial release of `coder`.
+-   Initial release of `coderAI`.
 
--   Features include customizable docstring generation, AI integration, and support for Python and JavaScript.
+-   Features include customizable docstring generation, AI integration, and support for Python.
 
 
 **Enjoy generating professional docstrings with ease!**

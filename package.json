@@ -1,9 +1,9 @@
 {
-    "name": "coder",
-    "displayName": "coder",
+    "name": "coderai",
+    "displayName": "coderAI",
     "description": "Extension to generate docstring using AI for python.",
-    "version": "1.0.0",
-    "publisher": "R-g",
+    "version": "2.1.0",
+    "publisher": "RJT-G",
     "engines": {
         "vscode": "^1.90.0"
     },
@@ -17,7 +17,7 @@
         "menus": {
             "editor/context": [
                 {
-                    "command": "coder.writeDocstring",
+                    "command": "coderAI.writeDocstring",
                     "when": "editorTextFocus",
                     "group": "navigation@100"
                 }
@@ -25,19 +25,19 @@
         },
         "commands": [
             {
-                "command": "coder.writeDocstring",
-                "title": "CODER: Write docstring"
+                "command": "coderAI.writeDocstring",
+                "title": "CoderAI: Write docstring"
             }
         ],
         "keybindings": [
             {
-                "command": "coder.writeDocstring",
+                "command": "coderAI.writeDocstring",
                 "key": "cmd+h",
                 "when": "editorTextFocus"
             }
         ],
         "configuration": {
-            "title": "Coder extension",
+            "title": "CoderAI extension",
             "properties": {
                 "coder.aiEngine": {
                     "type": "string",
