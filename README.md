@@ -18,7 +18,9 @@ Features
 
 ### Demo
 
-[![Watch the video] (https://github.com/goyal15rajat/coder/blob/main/demo.mov)]
+![Extension Preview](https://github.com/goyal15rajat/coder/blob/main/assets/1.png)
+
+![Extension Preview](https://github.com/goyal15rajat/coder/blob/main/assets/2.png)
 
 ### Coming soon
 
