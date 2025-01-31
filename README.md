@@ -147,7 +147,7 @@ Release Notes
 
 -   Features include customizable docstring generation, AI integration, and support for Python.
 
-### 2.2.0
+### 2.3.0
 
 -   Add support for AzureOpenAI
 

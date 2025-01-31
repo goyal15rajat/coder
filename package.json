@@ -2,7 +2,7 @@
     "name": "coderai",
     "displayName": "coderAI",
     "description": "Extension to generate docstring using AI for python.",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "publisher": "RJT-G",
     "engines": {
         "vscode": "^1.90.0"
@@ -12,7 +12,7 @@
         "url": "https://github.com/goyal15rajat/coder.git"
     },
     "categories": [
-        "Linters",
+        "Programming Languages",
         "AI"
     ],
     "activationEvents": [],

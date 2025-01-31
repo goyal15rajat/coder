@@ -184,7 +184,7 @@ async function fetchEngineResponse(engine, engineDetails, prompt, functionCode) 
 			let openAILines = await generateDocstringOpenAI(engineDetails.OpenAI.url, engineDetails.OpenAI.key, engineDetails.OpenAI.model, prompt, functionCode);
 			return await parseAIResponse(openAILines, functionCode)
 		case 'AZUREOPENAI':
-				let AzureOpenAILines = await generateDocstringAzureOpenAI(engineDetails.OpenAI.url, engineDetails.OpenAI.key, engineDetails.OpenAI.model, prompt, functionCode);
+				let AzureOpenAILines = await generateDocstringAzureOpenAI(engineDetails.AzureOpenAI.url, engineDetails.AzureOpenAI.key, engineDetails.AzureOpenAI.model, prompt, functionCode);
 				return await parseAIResponse(AzureOpenAILines, functionCode)
 		case 'GEMINI':
 			let geminiLines = await generateDocstringGemini(engineDetails.Gemini.url, engineDetails.Gemini.key, engineDetails.Gemini.model, prompt, functionCode);
@@ -200,6 +200,10 @@ async function fetchEngineResponse(engine, engineDetails, prompt, functionCode) 
 }
 
 async function parseAIResponse(responseLines, functionCode) {
+
+	if (!responseLines) {
+		vscode.window.showErrorMessage('Error generating docstring from AI, Please check configurations and try again')
+	}
 
 	console.log('functionCode', functionCode, 'reponse', responseLines)
 	try {
@@ -365,7 +369,6 @@ async function generateDocstringOpenAI(uri, key, model, prompt, functionCode) {
 }
 
 async function generateDocstringAzureOpenAI(uri, key, model, prompt, functionCode) {
-
 	let lines = ""
 	try {
 		const payload = {
