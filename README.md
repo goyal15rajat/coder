@@ -79,7 +79,7 @@ This extension contributes the following settings:
         [
             {
                 "language": "python",
-                "prompt": "Adds two numbers together.\n\nArgs:\n    a (int): The first number.\n    b (int): The second number.\n\nReturns:\n    int: The sum of the two numbers.\n\nRaises:\n    ServiceUnavailable: If the request times out or the response code is not 2xx."
+                "prompt": "Add two numbers and return the result.\n\nArgs:\na (int or float): The first number to add.\nb (int or float): The second number to add.\n\nReturns:\nint or float: The sum of a and b.\n\nRaises:\nValueError: If `a` or `b` is not a number.\n\nExample:\n>>> add_numbers(3, 5)\n8\n>>> add_numbers(2.5, 4.5)\n7.0\n\n\nRules:\n1. Add Args, Returns, Raises if present in function else do not add\n2. Add Example if exmple is possible as per response else only add heading."
             }
         ]
         ```
@@ -150,6 +150,10 @@ Release Notes
 ### 2.3.0
 
 -   Add support for AzureOpenAI
+
+### 2.4.0
+
+-   Bug fixes
 
 
 **Enjoy generating professional docstrings with ease!**

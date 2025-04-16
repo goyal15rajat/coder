@@ -2,7 +2,7 @@
     "name": "coderai",
     "displayName": "coderAI",
     "description": "Extension to generate docstring using AI for python.",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "publisher": "RJT-G",
     "engines": {
         "vscode": "^1.90.0"

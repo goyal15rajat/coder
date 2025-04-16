@@ -29,8 +29,6 @@ function activate(context) {
 
 		const languageId = editor.document.languageId;
 
-		vscode.window.showInformationMessage(`Generating docstring for ${languageId}`)
-
 		const config = vscode.workspace.getConfiguration('coder')
 
 		const langPrompts = config.get('languagePrompts')
@@ -49,83 +47,72 @@ function activate(context) {
 			await vscode.window.withProgress(
 				{
 					location: vscode.ProgressLocation.Notification,
-					title: 'Generating Doctring.',
+					title: `Generating docstring for ${languageId}`,
 					cancellable: false,
 				},
-				async () => {
-					const symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', editor.document.uri);
+				async (progress, token) => {
+					const timeout = setTimeout(() => {
+						token.isCancellationRequested = true;
+						vscode.window.showErrorMessage('Operation timed out after 30 seconds.');
+					}, 30000);
 
-					const position = editor.selection.active;
+					try {
+						const symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', editor.document.uri);
 
-					const flattenedSymbols = flattenSymbols(symbols);
-					console.log('flattenedSymbols', flattenedSymbols)
-					const currentSymbol = flattenedSymbols.findLast(symbol => 
-						position.isAfterOrEqual(symbol.range.start) && position.isBeforeOrEqual(symbol.range.end)
-					);
-					
-					let indentation = ''
-					let selectedText = ''
-					let symbolRangeUsed = false
+						const position = editor.selection.active;
 
-					if (!currentSymbol) {
-						// Retrieve the entire content of the file
-						vscode.window.showErrorMessage('0 or more than 1 function decleration found, Select whole function to generate docstring!!')
-						const selection = editor.selection;
-						selectedText = editor.document.getText(selection);
-					} else {
-						const symbolRange = currentSymbol.range;
-						indentation = ' '.repeat(symbolRange.c.e);
-						selectedText = editor.document.getText(symbolRange);
-						symbolRangeUsed = true
-					}
-					
-					if (!selectedText.trim()) {
-						vscode.window.showErrorMessage('No code selected to generate docstring!!')
-					}
+						const flattenedSymbols = flattenSymbols(symbols);
+						console.log('flattenedSymbols', flattenedSymbols)
+						const currentSymbol = flattenedSymbols.findLast(symbol => 
+							position.isAfterOrEqual(symbol.range.start) && position.isBeforeOrEqual(symbol.range.end)
+						);
+						
+						let indentation = ''
+						let selectedText = ''
+						let symbolRangeUsed = false
 
-					const prompt = getDocstringPrompt(languageId, langPrompts)
-					let newCode = await fetchEngineResponse(aiEngine, engineDetails, prompt, selectedText);
-
-					if (!newCode) {
-						vscode.window.showErrorMessage('Error generating docstring!!, Please try again.')
-						return 
-					}
-
-					const newCodeList = newCode.split('\n');
-					const indentedLines = newCodeList.map(line => indentation + line);
-					indentedLines[0] = newCodeList[0]
-					newCode =  indentedLines.join('\n');
-
-					editor.edit((editBuilder) => {
-						if (symbolRangeUsed){
-							const symbolRange = currentSymbol.range;
-							editBuilder.replace(symbolRange, newCode)
-						}
-						else {
+						if (!currentSymbol) {
+							// Retrieve the entire content of the file
+							vscode.window.showErrorMessage('0 or more than 1 function decleration found, Select whole function to generate docstring!!')
 							const selection = editor.selection;
-							editBuilder.replace(selection, newCode)
+							selectedText = editor.document.getText(selection);
+						} else {
+							const symbolRange = currentSymbol.range;
+							indentation = ' '.repeat(symbolRange.c.e);
+							selectedText = editor.document.getText(symbolRange);
+							symbolRangeUsed = true
 						}
-					});
-					// const document = await vscode.workspace.openTextDocument({
-					// 	content: newCode,
-					// 	language: languageId,
-					// });
-					// await vscode.window.showTextDocument(document, {
-					// 	preview: false,
-					// });
-					// vscode.window.showInformationMessage('Linting complete. Check the new window!');
-					// const originalDocument = await vscode.workspace.openTextDocument({
-					// 	content: selectedText,
-					// 	language: languageId,
-					// });
-			
-					// const lintedDocument = await vscode.workspace.openTextDocument({
-					// 	content: newCode,
-					// 	language: languageId,
-					// });
-					// await vscode.commands.executeCommand('vscode.diff', originalDocument.uri, lintedDocument.uri, 'Linting Changes');
+						
+						if (!selectedText.trim()) {
+							vscode.window.showErrorMessage('No code selected to generate docstring!!')
+						}
 
-					// vscode.window.showInformationMessage('Linting complete. Check the diff view!');
+						const prompt = getDocstringPrompt(languageId, langPrompts)
+						let newCode = await fetchEngineResponse(aiEngine, engineDetails, prompt, selectedText);
+
+						if (!newCode) {
+							vscode.window.showErrorMessage('Error generating docstring!!, Please try again.')
+							return 
+						}
+
+						const newCodeList = newCode.split('\n');
+						const indentedLines = newCodeList.map(line => indentation + line);
+						indentedLines[0] = newCodeList[0]
+						newCode =  indentedLines.join('\n');
+
+						editor.edit((editBuilder) => {
+							if (symbolRangeUsed){
+								const symbolRange = currentSymbol.range;
+								editBuilder.replace(symbolRange, newCode)
+							}
+							else {
+								const selection = editor.selection;
+								editBuilder.replace(selection, newCode)
+							}
+						});
+					} finally {
+						clearTimeout(timeout);
+					}
 				}
 			)
 
@@ -178,6 +165,8 @@ function getFirstAndLastLine(inputString) {
 }
 
 async function fetchEngineResponse(engine, engineDetails, prompt, functionCode) {
+
+	console.log('prompt', prompt)
 	
 	switch(engine.toUpperCase()) {
 		case 'OPENAI':
