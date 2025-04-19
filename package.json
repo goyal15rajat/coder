@@ -2,7 +2,7 @@
     "name": "coderai",
     "displayName": "coderAI",
     "description": "Extension to generate docstring using AI for python.",
-    "version": "2.4.0",
+    "version": "2.6.0",
     "publisher": "RJT-G",
     "engines": {
         "vscode": "^1.90.0"
@@ -15,7 +15,9 @@
         "Programming Languages",
         "AI"
     ],
-    "activationEvents": [],
+    "activationEvents": [
+        "onLanguage:python"
+    ],
     "main": "./extension.js",
     "contributes": {
         "menus": {
@@ -89,6 +91,11 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Controls if extension will autosave changes or not."
+                },
+                "coder.requestTimeout": {
+                    "type": "number",
+                    "default": 30000,
+                    "description": "Timeout in milliseconds for requests to the AI engine."
                 }
             }
         }

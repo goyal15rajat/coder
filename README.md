@@ -18,9 +18,24 @@ Features
 
 ### Demo
 
-![Extension Preview](https://github.com/goyal15rajat/coder/blob/main/assets/1.png)
+```
+def divide(a, b):
+    """Divides two numbers.
 
-![Extension Preview](https://github.com/goyal15rajat/coder/blob/main/assets/2.png)
+    Args:
+        a (float): The numerator.
+        b (float): The denominator.
+
+    Returns:
+        float: The result of dividing a by b.
+
+    Raises:
+        ValueError: If b is zero, as division by zero is not allowed.
+    """
+    if b == 0:
+        raise ValueError("Cannot divide by zero")
+    return a / b
+```
 
 ### Coming soon
 

@@ -1,133 +1,295 @@
-// Import the module and reference it with the alias vscode in your code below
 const vscode = require('vscode');
-// const child_process = require('child_process')
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-
-/**
- * @param {vscode.ExtensionContext} context
- */
-function activate(context) {
-
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "coderAI" is now active!');
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with  registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('coderAI.writeDocstring', async () => {
-		// The code you place here will be executed every time your command is executed
-
-		const editor = vscode.window.activeTextEditor;
-
-		if (!editor) {
-			vscode.window.showErrorMessage('No active window selected.')
-		}
-
-
-		const languageId = editor.document.languageId;
-
-		const config = vscode.workspace.getConfiguration('coder')
-
-		const langPrompts = config.get('languagePrompts')
-		const autoSave = config.get('autoSave')
-		const engineDetails = config.get('engineDetails')
-		const aiEngine = config.get('aiEngine')
-		// const pythonLinter = config.get('pythonLinter')
-		// const pythonLinterConfigPath = config.get('pythonLinterConfigPath')
-
-		if (aiEngine.trim() == "" ) {
-			vscode.window.showErrorMessage('Invalid settings. make sure aiEngine and engineDetails should not be empty')
-		}
-
-		try {
-
-			await vscode.window.withProgress(
-				{
-					location: vscode.ProgressLocation.Notification,
-					title: `Generating docstring for ${languageId}`,
-					cancellable: false,
-				},
-				async (progress, token) => {
-					const timeout = setTimeout(() => {
-						token.isCancellationRequested = true;
-						vscode.window.showErrorMessage('Operation timed out after 30 seconds.');
-					}, 30000);
-
-					try {
-						const symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', editor.document.uri);
-
-						const position = editor.selection.active;
-
-						const flattenedSymbols = flattenSymbols(symbols);
-						console.log('flattenedSymbols', flattenedSymbols)
-						const currentSymbol = flattenedSymbols.findLast(symbol => 
-							position.isAfterOrEqual(symbol.range.start) && position.isBeforeOrEqual(symbol.range.end)
-						);
-						
-						let indentation = ''
-						let selectedText = ''
-						let symbolRangeUsed = false
-
-						if (!currentSymbol) {
-							// Retrieve the entire content of the file
-							vscode.window.showErrorMessage('0 or more than 1 function decleration found, Select whole function to generate docstring!!')
-							const selection = editor.selection;
-							selectedText = editor.document.getText(selection);
-						} else {
-							const symbolRange = currentSymbol.range;
-							indentation = ' '.repeat(symbolRange.c.e);
-							selectedText = editor.document.getText(symbolRange);
-							symbolRangeUsed = true
-						}
-						
-						if (!selectedText.trim()) {
-							vscode.window.showErrorMessage('No code selected to generate docstring!!')
-						}
-
-						const prompt = getDocstringPrompt(languageId, langPrompts)
-						let newCode = await fetchEngineResponse(aiEngine, engineDetails, prompt, selectedText);
-
-						if (!newCode) {
-							vscode.window.showErrorMessage('Error generating docstring!!, Please try again.')
-							return 
-						}
-
-						const newCodeList = newCode.split('\n');
-						const indentedLines = newCodeList.map(line => indentation + line);
-						indentedLines[0] = newCodeList[0]
-						newCode =  indentedLines.join('\n');
-
-						editor.edit((editBuilder) => {
-							if (symbolRangeUsed){
-								const symbolRange = currentSymbol.range;
-								editBuilder.replace(symbolRange, newCode)
-							}
-							else {
-								const selection = editor.selection;
-								editBuilder.replace(selection, newCode)
-							}
-						});
-					} finally {
-						clearTimeout(timeout);
-					}
-				}
-			)
-
-			if (autoSave) {
-				editor.document.save()
-			}
-
-		} catch (error) {
-			vscode.window.showErrorMessage(`Failed to generate docstring: ${error.message}`)
-		}
-	});
-
-	context.subscriptions.push(disposable);
+// Helper function to get configuration with defaults
+function getConfig(key, defaultValue) {
+    return vscode.workspace.getConfiguration('coder').get(key, defaultValue);
 }
 
+// Function to handle common API errors
+function handleApiError(error, engineName, response = null) {
+    let message = `${engineName} API error: ${error.message || error}`;
+    if (response) {
+        message = `${engineName} API error ${response.status}: ${error.message || error}`;
+        switch (response.status) {
+            case 401:
+                message += '. Please check your API key.';
+                break;
+            case 403:
+                message += '. Please check your API key permissions or plan.';
+                break;
+            case 429:
+                message += '. You might have exceeded your quota or rate limit.';
+                break;
+            case 500:
+                message += '. The AI service might be experiencing issues.';
+                break;
+        }
+    } else if (error.name === 'AbortError') {
+        message = `${engineName} API request timed out. You can increase the timeout in the extension settings ('coder.requestTimeout').`;
+    }
+    vscode.window.showErrorMessage(message);
+    console.error(message, error);
+}
+
+async function generateDocstringOpenAI(code, languageId) {
+    const engineDetails = getConfig('engineDetails', {});
+    const config = engineDetails.OpenAI;
+    const requestTimeout = getConfig('requestTimeout', 30000);
+
+    if (!config || !config.url || !config.key || !config.model) {
+        vscode.window.showErrorMessage('OpenAI configuration is missing in settings.');
+        return null;
+    }
+
+    const prompt = getPromptForLanguage(languageId, code);
+    if (!prompt) return null;
+
+    const payload = {
+        model: config.model,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
+
+    try {
+        const response = await fetch(config.url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.key}`
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+            handleApiError(new Error(errorData.error?.message || response.statusText), 'OpenAI', response);
+            return null;
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content?.trim() || null;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        handleApiError(error, 'OpenAI', error.name === 'AbortError' ? null : { status: 'Network Error', statusText: error.message });
+        return null;
+    }
+}
+
+async function generateDocstringGemini(code, languageId) {
+    const engineDetails = getConfig('engineDetails', {});
+    const config = engineDetails.Gemini;
+    const requestTimeout = getConfig('requestTimeout', 30000);
+
+    if (!config || !config.url || !config.key || !config.model) {
+        vscode.window.showErrorMessage('Gemini configuration is missing in settings.');
+        return null;
+    }
+
+    const prompt = getPromptForLanguage(languageId, code);
+    if (!prompt) return null;
+
+    const payload = {
+        contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    const apiUrl = `${config.url}/${config.model}:generateContent?key=${config.key}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+            handleApiError(new Error(errorData.error?.message || response.statusText), 'Gemini', response);
+            return null;
+        }
+
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        handleApiError(error, 'Gemini', error.name === 'AbortError' ? null : { status: 'Network Error', statusText: error.message });
+        return null;
+    }
+}
+
+async function generateDocstringAzureOpenAI(code, languageId) {
+    const engineDetails = getConfig('engineDetails', {});
+    const config = engineDetails.AzureOpenAI;
+    const requestTimeout = getConfig('requestTimeout', 30000);
+
+    if (!config || !config.url || !config.key) {
+        vscode.window.showErrorMessage('Azure OpenAI configuration (URL/Endpoint and Key) is missing.');
+        return null;
+    }
+
+    const prompt = getPromptForLanguage(languageId, code);
+    if (!prompt) return null;
+
+    const payload = {
+        messages: [{ role: "user", content: prompt }],
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
+
+    try {
+        const response = await fetch(config.url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'api-key': config.key
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+            handleApiError(new Error(errorData.error?.message || response.statusText), 'Azure OpenAI', response);
+            return null;
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content?.trim() || null;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        handleApiError(error, 'Azure OpenAI', error.name === 'AbortError' ? null : { status: 'Network Error', statusText: error.message });
+        return null;
+    }
+}
+
+function getPromptForLanguage(languageId, code) {
+    const languagePrompts = getConfig('languagePrompts', []);
+    const langConfig = languagePrompts.find(lp => lp.language === languageId);
+
+    let basePrompt = `Add a standard docstring to the following ${languageId} code. IMPORTANT: Respond ONLY with the complete, modified code block including the new docstring. Do not add any introductory text, explanations, or markdown formatting like \`\`\`.`;
+
+    if (langConfig && langConfig.prompt) {
+        basePrompt = `${langConfig.prompt}\n\nIMPORTANT: Respond ONLY with the complete, modified code block including the new docstring. Do not add any introductory text, explanations, or markdown formatting like \`\`\`.`;
+    } else if (languageId === 'python') {
+        basePrompt = `Generate a standard PEP 257 compliant docstring for the following Python code. Include descriptions for parameters and return values if applicable. IMPORTANT: Respond ONLY with the complete, modified code block including the new docstring. Do not add any introductory text, explanations, or markdown formatting like \`\`\`.`;
+    } else {
+        vscode.window.showErrorMessage(`No prompt configured for language: ${languageId}. Please configure it in settings.`);
+        return null;
+    }
+
+    return `${basePrompt}\n\nCode:\n\`\`\`${languageId}\n${code}\n\`\`\``;
+}
+
+function parseAIResponse(aiResponse, originalCode) {
+    if (!aiResponse || !originalCode) {
+        return null;
+    }
+
+    const originalCodeTrimmed = originalCode.trim();
+    const aiResponseTrimmed = aiResponse.trim();
+
+    const codeBlockRegex = /```(?:\w*\n)?([\s\S]*?)```/;
+    const match = aiResponseTrimmed.match(codeBlockRegex);
+    const extractedCode = match ? match[1].trim() : aiResponseTrimmed;
+
+    const originalLines = originalCodeTrimmed.split('\n').filter(line => line.trim() !== '');
+    const extractedLines = extractedCode.split('\n');
+
+    if (originalLines.length === 0) return null;
+
+    const firstOriginalLine = originalLines[0];
+    const lastOriginalLine = originalLines[originalLines.length - 1];
+
+    let startIndex = -1;
+    let endIndex = -1;
+
+    for (let i = 0; i < extractedLines.length; i++) {
+        if (extractedLines[i].trim() === firstOriginalLine.trim()) {
+            startIndex = i;
+            break;
+        }
+    }
+
+    for (let i = extractedLines.length - 1; i >= 0; i--) {
+        if (extractedLines[i].trim() === lastOriginalLine.trim()) {
+            endIndex = i;
+            break;
+        }
+    }
+
+    if (startIndex !== -1 && endIndex !== -1 && startIndex <= endIndex) {
+        const potentialBlock = extractedLines.slice(startIndex, endIndex + 1).join('\n');
+        if (potentialBlock.includes(firstOriginalLine) && potentialBlock.includes(lastOriginalLine)) {
+            console.log("Parsed response using start/end line matching.");
+            return potentialBlock;
+        }
+    }
+
+    if (extractedCode.includes(originalCodeTrimmed)) {
+        console.warn("Parsing fallback: AI response contained original code, returning extracted block.");
+        return extractedCode;
+    }
+
+    if (extractedCode === originalCodeTrimmed) {
+        vscode.window.showWarningMessage("AI response did not seem to modify the code (no docstring added).");
+        return null;
+    }
+
+    console.error("Failed to parse AI response reliably. Response:", aiResponse);
+    vscode.window.showErrorMessage("Failed to parse the AI's response. The format might be unexpected.");
+    return null;
+}
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function findSymbolRange(editor, position) {
+    let symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', editor.document.uri);
+    // Retry logic if symbols are initially undefined or empty
+    if (!symbols || symbols.length === 0) {
+        console.log("Initial symbol fetch failed or returned empty. Retrying after 2 seconds...");
+        await delay(2000); // Wait for 2 seconds
+        symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', editor.document.uri);
+
+        if (!symbols || symbols.length === 0) {
+            console.log("Symbol fetch failed after retry.");
+            vscode.window.showErrorMessage('Could not retrieve document symbols. File indexing might be in progress. Please try again shortly.');
+            return null; // Indicate failure to find symbols
+        }
+        console.log("Symbols fetched successfully on retry.");
+    }
+	const flattenedSymbols = flattenSymbols(symbols);
+	const currentSymbol = flattenedSymbols.findLast(symbol => 
+		position.isAfterOrEqual(symbol.range.start) && position.isBeforeOrEqual(symbol.range.end)
+	);
+	
+	let indentation = ''
+	let selectedText = ''
+	let symbolRange = null;
+    if (!currentSymbol) {
+
+		// Retrieve the entire content of the file
+		vscode.window.showErrorMessage('0 or more than 1 function decleration found, Select whole function to generate docstring!!')
+		symbolRange = editor.selection;
+	} else {
+		symbolRange = currentSymbol.range;
+
+	}
+    return symbolRange;
+}
 
 function flattenSymbols(symbols) {
     const result = [];
@@ -140,277 +302,99 @@ function flattenSymbols(symbols) {
     return result;
 }
 
-const getDocstringPrompt = (languageId, langPrompts) => {
+function activate(context) {
+    console.log('Congratulations, your extension "coderAI" is now active!');
 
-	let prompt = `For the provided code in ${languageId} language, add docstring and return the code without any change.`
-	if (!languageId) {
-		return prompt
-	}
-	const firstMatch = langPrompts.find(item => item.language.toString().toUpperCase() === languageId.toString().toUpperCase());
+    let disposable = vscode.commands.registerCommand('coderAI.writeDocstring', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showInformationMessage('No active editor found.');
+            return;
+        }
 
-	if (firstMatch) {
-		prompt = `For the provided code in ${languageId}, add docstring as per the example provided.\n Example-\n ${firstMatch.prompt}`
-	}
+        const document = editor.document;
+        const selection = editor.selection;
+        const languageId = document.languageId;
 
-	return prompt
+        const aiEngine = getConfig('aiEngine', '');
+        if (!aiEngine) {
+            vscode.window.showErrorMessage('Please select an AI engine in the CoderAI settings.');
+            return;
+        }
 
+        const symbolRange = await findSymbolRange(editor, selection.active);
+        console.log("Symbol range found:", symbolRange);
+        if (!symbolRange) {
+            vscode.window.showInformationMessage('Could not find a function or class definition at the cursor position.');
+            return;
+        }
+        console.log("Symbol range: here");
+        const originalCode = document.getText(symbolRange);
+
+        console.log("Original code:", originalCode);
+
+        vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `CoderAI: Generating docstring using ${aiEngine}...`,
+            cancellable: false
+        }, async (progress) => {
+            let aiResponse = null;
+            try {
+                switch (aiEngine) {
+                    case 'OpenAI':
+                        aiResponse = await generateDocstringOpenAI(originalCode, languageId);
+                        break;
+                    case 'Gemini':
+                        aiResponse = await generateDocstringGemini(originalCode, languageId);
+                        break;
+                    case 'AzureOpenAI':
+                        aiResponse = await generateDocstringAzureOpenAI(originalCode, languageId);
+                        break;
+                    default:
+                        vscode.window.showErrorMessage(`Unsupported AI engine: ${aiEngine}`);
+                        return;
+                }
+
+                if (aiResponse) {
+                    const newCodeWithDocstring = parseAIResponse(aiResponse, originalCode);
+
+                    if (newCodeWithDocstring) {
+                        const firstLine = document.lineAt(symbolRange.start.line);
+                        const indentationLevel = firstLine.firstNonWhitespaceCharacterIndex;
+                        const indentation = ' '.repeat(indentationLevel);
+
+                        const indentedNewCode = newCodeWithDocstring.split('\n').map((line, index) => {
+                            if (index === 0 || line.trim() === '') {
+                                return line;
+                            }
+                            return indentation + line;
+                        }).join('\n');
+
+                        await editor.edit(editBuilder => {
+                            editBuilder.replace(symbolRange, indentedNewCode);
+                        });
+
+                        if (getConfig('autoSave', false)) {
+                            await document.save();
+                            vscode.window.showInformationMessage('Docstring generated and saved.');
+                        } else {
+                            vscode.window.showInformationMessage('Docstring generated.');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error during docstring generation process:", error);
+                vscode.window.showErrorMessage(`An unexpected error occurred: ${error.message}`);
+            }
+        });
+    });
+
+    context.subscriptions.push(disposable);
 }
 
-function getFirstAndLastLine(inputString) {
-	console.log('inputString', inputString)
-    const lines = inputString.split('\n'); // Split the string into lines
-    const firstLine = lines[0]; // First line
-    const lastLine = lines[lines.length - 1]; // Last line
-    return { firstLine, lastLine };
-}
-
-async function fetchEngineResponse(engine, engineDetails, prompt, functionCode) {
-
-	console.log('prompt', prompt)
-	
-	switch(engine.toUpperCase()) {
-		case 'OPENAI':
-			let openAILines = await generateDocstringOpenAI(engineDetails.OpenAI.url, engineDetails.OpenAI.key, engineDetails.OpenAI.model, prompt, functionCode);
-			return await parseAIResponse(openAILines, functionCode)
-		case 'AZUREOPENAI':
-				let AzureOpenAILines = await generateDocstringAzureOpenAI(engineDetails.AzureOpenAI.url, engineDetails.AzureOpenAI.key, engineDetails.AzureOpenAI.model, prompt, functionCode);
-				return await parseAIResponse(AzureOpenAILines, functionCode)
-		case 'GEMINI':
-			let geminiLines = await generateDocstringGemini(engineDetails.Gemini.url, engineDetails.Gemini.key, engineDetails.Gemini.model, prompt, functionCode);
-			return await parseAIResponse(geminiLines, functionCode)
-			
-		case 'DEEPSEEK':
-			let deepseekLines = await generateDocstringDeepseek(engineDetails.url, engineDetails.authValue, prompt, functionCode);
-			return await parseAIResponse(deepseekLines, functionCode)
-		default:
-			vscode.window.showErrorMessage('Invalid Engine selected')
-	}
-
-}
-
-async function parseAIResponse(responseLines, functionCode) {
-
-	if (!responseLines) {
-		vscode.window.showErrorMessage('Error generating docstring from AI, Please check configurations and try again')
-	}
-
-	console.log('functionCode', functionCode, 'reponse', responseLines)
-	try {
-		const { firstLine, lastLine } = getFirstAndLastLine(functionCode);
-
-		console.log('lastLine', firstLine)
-
-		const trimmed_lines = responseLines.map(s => s.trim());
-		
-		const firstLineIndex = trimmed_lines.indexOf(firstLine.trim());
-		const lastLineIndex = trimmed_lines.lastIndexOf(lastLine.trim());
-		const relevantLines = responseLines.slice(firstLineIndex, lastLineIndex + 1);
-		return relevantLines.join('\n');
-	}
-	catch (error) {
-		vscode.window.showErrorMessage(`Error while parsing AI response: ${error}`);
-		return null;
-	}
-}
-
-async function generateDocstringDeepseek(uri, key, prompt, functionCode) {
-
-	let lines = ""
-	try {
-		const payload = {
-			messages: [
-				{
-					role: "system",
-					content: `You are a coding assistant which generates doctrings. Add doctring to the code and return the output. Do not edit or change code or code format`
-				},
-				{
-					role: "user",
-					content: `${prompt}\n Code -\n${functionCode}`
-				},
-
-			],
-			temperature: 0,
-			frequency_penalty: 0,
-			presence_penalty: 0,
-			max_tokens: 4096,
-			stop: null
-		};
-
-		const response = await fetch(uri, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"api-key": key,
-			},
-			body: JSON.stringify(payload),
-		});
-
-		if (!response.ok) {
-			const error = await response.text();
-			vscode.window.showErrorMessage(`Deepseek API error: ${error}`);
-			return null;
-		}
-
-		const data = await response.json();
-		console.log('data', data)
-
-		lines = data.choices[0].message.content.split('\n');
-	} catch (error) {
-		vscode.window.showErrorMessage("Please retry - Error generating docstring:", error);
-		return null;
-	}
-}
-
-async function generateDocstringGemini(uri, key, model, prompt, functionCode) {
-
-	let lines = ""
-	try {
-		const payload = {
-			"contents": [
-				{
-					parts: [
-						{
-							text: `You are a coding assistant which generates doctrings. Add doctring to the code and return the output. Do not edit or change code or code format`
-						},
-						{
-							text: `${prompt}\n Code -\n${functionCode}`
-						}
-
-					]
-				}
-			]
-		};
-		console.log('model', model)
-		const response = await fetch(`${uri}/${model}:generateContent?key=${key}`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json"
-			},
-			body: JSON.stringify(payload),
-		});
-
-		if (!response.ok) {
-			const error = await response.text();
-			console.log('error', response.status)
-			vscode.window.showErrorMessage(`Gemini API error ${response.status}: ${error}`);
-			return null;
-		}
-
-		const data = await response.json();
-		console.log('data', data)
-
-		lines = data.candidates[0].content.parts[0].text.split('\n');
-		return lines
-	} catch (error) {
-		vscode.window.showErrorMessage(`Please retry - Error generating docstring: ${error}`);
-		return null;
-	}
-}
-
-async function generateDocstringOpenAI(uri, key, model, prompt, functionCode) {
-
-	let lines = ""
-	try {
-		const payload = {
-			model: model,
-			messages: [
-				{
-					role: "system",
-					content: `You are a coding assistant which generates doctrings. Add doctring to the code and return the output. Do not edit or change code or code format`
-				},
-				{
-					role: "user",
-					content: `${prompt}\n Code -\n${functionCode}`
-				},
-
-			],
-			temperature: 0,
-			frequency_penalty: 0,
-			presence_penalty: 0,
-			max_tokens: 4096,
-			stop: null
-		};
-
-		const response = await fetch(uri, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"Authorization": `Bearer ${key}`,
-			},
-			body: JSON.stringify(payload),
-		});
-
-		if (!response.ok) {
-			const error = await response.text();
-			vscode.window.showErrorMessage(`OpenAI API error: ${error}`);
-			return null;
-		}
-
-		const data = await response.json();
-		console.log('data', data)
-
-		lines = data.choices[0].message.content.split('\n');
-		return lines
-	} catch (error) {
-		vscode.window.showErrorMessage("Please retry - Error generating docstring:", error);
-		return null;
-	}
-}
-
-async function generateDocstringAzureOpenAI(uri, key, model, prompt, functionCode) {
-	let lines = ""
-	try {
-		const payload = {
-			model: model,
-			messages: [
-				{
-					role: "system",
-					content: `You are a coding assistant which generates doctrings. Add doctring to the code and return the output. Do not edit or change code or code format`
-				},
-				{
-					role: "user",
-					content: `${prompt}\n Code -\n${functionCode}`
-				},
-
-			],
-			temperature: 0,
-			frequency_penalty: 0,
-			presence_penalty: 0,
-			max_tokens: 4096,
-			stop: null
-		};
-
-		const response = await fetch(uri, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"api-key": `${key}`,
-			},
-			body: JSON.stringify(payload),
-		});
-
-		if (!response.ok) {
-			const error = await response.text();
-			vscode.window.showErrorMessage(`OpenAI API error: ${error}`);
-			return null;
-		}
-
-		const data = await response.json();
-		console.log('data', data)
-
-		lines = data.choices[0].message.content.split('\n');
-		return lines
-	} catch (error) {
-		vscode.window.showErrorMessage("Please retry - Error generating docstring:", error);
-		return null;
-	}
-}
-
-
-// This method is called when your extension is deactivated
-function deactivate() { }
+function deactivate() {}
 
 module.exports = {
-	activate,
-	deactivate
-}
+    activate,
+    deactivate
+};
